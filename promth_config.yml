@@ -1,0 +1,66 @@
+---
+- name: Configure Prometheus on AWS
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Prometheus and necessary dependencies
+      apt:
+        name:
+          - prometheus
+          - prometheus-node-exporter
+        state: present
+
+    - name: Create Prometheus configuration directory
+      file:
+        path: /etc/prometheus
+        state: directory
+        mode: '0755'
+
+    - name: Deploy Prometheus configuration file
+      copy:
+        dest: /etc/prometheus/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: 'node'
+              static_configs:
+                - targets: ['localhost:9100']
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets:
+                      - 'localhost:9093'
+
+    - name: Configure Prometheus alerting rules
+      copy:
+        dest: /etc/prometheus/rules.yml
+        content: |
+          groups:
+            - name: example_alerts
+              rules:
+                - alert: HighCpuUsage
+                  expr: avg(rate(process_cpu_seconds_total[1m])) by (instance) > 0.8
+                  for: 5m
+                  labels:
+                    severity: critical
+                  annotations:
+                    summary: "High CPU usage detected on instance {{ '$labels.instance' }}"
+
+    - name: Ensure Prometheus service is running
+      systemd:
+        name: prometheus
+        state: started
+        enabled: yes
+
+    - name: Reload Prometheus to apply alerting rules
+      systemd:
+        name: prometheus
+        state: reloaded
+
+  handlers:
+    - name: Reload Prometheus
+      systemd:
+        name: prometheus
+        state: reloaded
+

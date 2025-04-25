@@ -1,0 +1,14 @@
+---
+- name: Setup Application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Pull and run a simple nginx container
+      docker_container:
+        name: my_nginx
+        image: nginx
+        state: started
+        restart_policy: always
+        ports:
+          - "80:80"
+
